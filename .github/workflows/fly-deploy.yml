@@ -1,0 +1,52 @@
+name: Deploy to Fly.io
+
+on:
+  workflow_run:
+    workflows: ["End to End Integration"]
+    types:
+      - completed
+
+jobs:
+  deploy:
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+
+    services:
+      mongo:
+        image: mongo:latest
+        ports:
+          - 27017:27017
+        env:
+          MONGO_INITDB_ROOT_USERNAME: ${{ secrets.MONGO_INITDB_ROOT_USERNAME }}
+          MONGO_INITDB_ROOT_PASSWORD: ${{ secrets.MONGO_INITDB_ROOT_PASSWORD }}
+
+    env:
+      # OpenAI API
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      MONGODB_URI: ${{ secrets.MONGODB_URI }}
+      MONGODB_DB: assistify-api
+      FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+
+    defaults:
+      run:
+        working-directory: ./assistify-api
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.x"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install hatch
+          hatch env create
+
+      - name: Unit tests
+        run: |
+          hatch run test
+
+      - uses: superfly/flyctl-actions/setup-flyctl@master
+      - run: flyctl deploy --remote-only

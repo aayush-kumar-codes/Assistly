@@ -1,0 +1,49 @@
+name: Deploy to Vercel
+
+on:
+  workflow_run:
+    workflows: ["End to End Integration"]
+    types:
+      - completed
+
+jobs:
+  deploy:
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+
+    env:
+      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+      GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+      GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
+      NEXTAUTH_SECRET: ${{ secrets.NEXTAUTH_SECRET }}
+      NEXTAUTH_URL: ${{ secrets.NEXTAUTH_URL }}
+      VERCEL_ACCESS_TOKEN: ${{ secrets.VERCEL_ACCESS_TOKEN }}
+
+    defaults:
+      run:
+        working-directory: ./assistify-ui
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 18
+
+      - name: Install dependencies
+        run: yarn install --frozen-lockfile
+
+      - name: Build project
+        run: yarn build
+
+      - name: Run tests
+        run: |
+          yarn upgrade
+          yarn test:ci
+
+      - name: Deploy to Vercel
+        run: |
+          vercel pull --yes --environment=production --token=$VERCEL_ACCESS_TOKEN
+          vercel build --prod --token=$VERCEL_ACCESS_TOKEN
+          vercel deploy --prebuilt --prod --token=$VERCEL_ACCESS_TOKEN

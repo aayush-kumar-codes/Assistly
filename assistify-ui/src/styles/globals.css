@@ -1,0 +1,46 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Design Palette */
+:root {
+  --bg-primary: #252526; /* Dark background color */
+  --bg-secondary: #1e1e1e; /* Slightly lighter background */
+  --text-primary: #d4d4d4; /* Light gray text */
+  --text-secondary: #808080; /* Dark gray text */
+  --btn-primary: #007acc; /* Blue button */
+  --btn-primary-hover: #005a9e; /* Darker blue button hover */
+  --btn-focus-ring: #007acc; /* Blue focus ring */
+  --header-height: 64px;
+  --border-slim-muted: 0.5px solid #828282;
+}
+
+@font-face {
+  font-family: "Dank Mono";
+  src: url("/fonts/DankMono-Regular.woff2") format("woff2"),
+    url("/fonts/DankMono-Regular.ttf") format("truetype");
+  font-weight: normal;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: "DankMonoBold";
+  src: url("/fonts/DankMono-Bold.woff2") format("woff2"),
+    url("/fonts/DankMono-Bold.ttf") format("truetype");
+  font-weight: bold;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: "Dank Mono Italic";
+  src: url("/fonts/DankMono-Italic.woff2") format("woff2"),
+    url("/fonts/DankMono-Italic.ttf") format("truetype");
+  font-weight: normal;
+  font-style: italic;
+}
+
+body {
+  font-family: "Dank Mono", Arial, sans-serif;
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+}
