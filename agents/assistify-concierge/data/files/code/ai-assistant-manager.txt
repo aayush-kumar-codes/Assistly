@@ -1,0 +1,2478 @@
+# ai-assistant-manager
+
+## prompt_test.py
+
+### Summary
+
+The code defines a test function `test_get_prompt()` that checks if the prompt retrieved from a specified path (`SAMPLE_PROMPT_PATH`) is a string and contains the current date in ISO format. It uses the `datetime` module to get the current date.
+
+```py
+from datetime import datetime
+
+from ai_assistant_manager.prompts.prompt import SAMPLE_PROMPT_PATH, get_prompt
+
+
+def test_get_prompt():
+    current_date = datetime.today().date().isoformat()
+
+    prompt = get_prompt(prompt_path=SAMPLE_PROMPT_PATH)
+    assert isinstance(prompt, str)
+    assert current_date in prompt
+
+```
+
+## exporter_test.py
+
+### Summary
+
+The code is a set of unit tests for functions in the `ai_assistant_manager.exporters.exporter` module, specifically testing `does_data_exist` and `create_dir`.
+
+1. `test_does_data_exist`: Verifies that `does_data_exist` returns `True` when a file is confirmed to exist, using a mocked path check.
+2. `test_create_dir_data_exists`: Checks that `create_dir` does not create a directory if `does_data_exist` indicates that data already exists.
+
+3. `test_create_dir_data_does_not_exist`: Ensures that `create_dir` creates a directory when `does_data_exist` shows that data does not exist.
+
+Mocking is used to simulate file existence and directory creation without touching the actual filesystem.
+
+```py
+from unittest.mock import Mock, patch
+
+from ai_assistant_manager.exporters.exporter import create_dir, does_data_exist
+
+
+def test_does_data_exist():
+    """
+    Test that does_data_exist returns True when the file exists.
+    """
+    file_path = Mock(return_value="path/to/file")
+
+    with patch("os.path.exists", return_value=True):
+        result = does_data_exist(file_path)
+
+    assert result
+
+
+@patch("ai_assistant_manager.exporters.exporter.does_data_exist")
+def test_create_dir_data_exists(mock_does_data_exist: Mock):
+    """
+    Test that create_dir does not create a directory if data already exists.
+    """
+    mock_does_data_exist.return_value = True
+
+    with patch("os.makedirs") as mock_makedirs:
+        create_dir("dir/path", "file/path")
+
+    mock_makedirs.assert_not_called()
+
+
+@patch("ai_assistant_manager.exporters.exporter.does_data_exist")
+def test_create_dir_data_does_not_exist(mock_does_data_exist: Mock):
+    """
+    Test that create_dir creates a directory if data does not exist.
+    """
+    mock_does_data_exist.return_value = False
+
+    with patch("os.makedirs") as mock_makedirs:
+        create_dir("dir/path", "file/path")
+
+    mock_makedirs.assert_called_once_with("dir/path", exist_ok=True)
+
+```
+
+## encoding.py
+
+### Summary
+
+The code defines a constant named `UTF_8` and assigns it the string value `"utf-8"`, representing the UTF-8 character encoding.
+
+```py
+UTF_8 = "utf-8"
+
+```
+
+## timer_test.py
+
+### Summary
+
+This code defines a unit test for a decorator called `timer` which logs the execution time of a function. It includes:
+
+1. A `dummy_function` decorated with `timer` that does nothing.
+2. A mock logger is created to intercept logging calls during the test.
+3. The `dummy_function` is called, and the test checks that the logger was called once with a message indicating the function's execution time was logged.
+
+The key assertion ensures that the log message includes "Test function: completed in," confirming the decorator works as expected.
+
+```py
+from unittest.mock import patch
+
+from ai_assistant_manager.timer.timer import timer
+
+
+def test_timer_decorator():
+    """
+    Test that the timer decorator logs the correct message when the decorated function is called.
+    """
+
+    @timer("Test function")
+    def dummy_function():
+        pass
+
+    with patch("ai_assistant_manager.timer.timer.logger") as mock_logger:
+        dummy_function()
+
+    # Ensure the logger is called once with the expected message
+    mock_logger.debug.assert_called_once()
+    assert "Test function: completed in" in mock_logger.debug.call_args[0][0]
+
+```
+
+## timer.py
+
+### Summary
+
+This code defines a decorator called `timer` that measures and logs the execution time of a function. It takes a message as an argument, which will be included in the log. When the decorated function is called, it records the start time, executes the function, then calculates and logs the elapsed time before returning the result. The logging is done using the `loguru` library at the debug level.
+
+```py
+import time
+from functools import wraps
+
+from loguru import logger
+
+
+def timer(message: str):
+    """
+    Decorator to measure the execution time of a function and log it.
+
+    :param message: The message to include in the log.
+    :return: The decorator function.
+    """
+
+    def decorator(func):
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            start_time = time.time()
+            result = func(*args, **kwargs)
+            end_time = time.time()
+            elapsed_time = round(end_time - start_time, 4)
+            logger.debug(f"{message}: completed in {elapsed_time} seconds")
+            return result
+
+        return wrapper
+
+    return decorator
+
+```
+
+## exporter.py
+
+### Summary
+
+The code defines two functions for managing data files and directories:
+
+1. `does_data_exist(file_path: str) -> bool`: Checks if a specified data file exists at the given path and returns `True` if it does, or `False` if it doesn't.
+
+2. `create_dir(dir_path: str, file_path: str)`: Creates a directory at the specified path only if the data file does not already exist. It logs a message when the directory is created.
+
+Overall, the code helps manage directory creation based on the presence of a data file.
+
+```py
+import os
+
+from loguru import logger
+
+
+def does_data_exist(file_path: str) -> bool:
+    """
+    Check if the data file exists at the given file path.
+
+    This function is used to determine whether a specific data file is already present,
+    which helps in deciding whether to create a new directory or not.
+
+    :param file_path: The path to the data file.
+    :return: True if the file exists, False otherwise.
+    """
+    return os.path.exists(file_path)
+
+
+def create_dir(dir_path: str, file_path: str):
+    """
+    Create a directory if the data file does not exist.
+
+    This function ensures that the directory structure is in place before any data files are created.
+    It prevents redundant directory creation if the data file already exists.
+
+    :param dir_path: The path to the directory to create.
+    :param file_path: The path to the data file to check.
+    """
+    if not does_data_exist(file_path):
+        logger.info(f"Creating data dir path: {dir_path}")
+        os.makedirs(dir_path, exist_ok=True)
+
+```
+
+## directory_exporter.py
+
+### Summary
+
+The `DirectoryExporter` class is designed to export data from a specified directory into a JSON file. It includes the following key functionalities:
+
+1. **Initialization**: Takes the target directory as an input parameter.
+2. **Export Method**: Checks if a data file already exists; if not, it creates the directory and writes data to a JSON file.
+3. **Write Data**: Loads data from files in the directory, converts it to a dictionary format, and writes it to a JSON file.
+4. **Load Method**: Reads files from the target directory and returns a list of `ContentData` objects.
+5. **File Load**: Processes an individual file to extract its content, title, and date, returning a `ContentData` instance.
+6. **Path Methods**: Provides methods to construct file and directory paths based on environment variables.
+
+Logging is incorporated to track the process, and data is encoded in UTF-8.
+
+```py
+import json
+import os
+from dataclasses import asdict
+
+from dateutil import parser
+from loguru import logger
+
+from ai_assistant_manager.encoding import UTF_8
+from ai_assistant_manager.env_variables import ENV_VARIABLES
+from ai_assistant_manager.exporters.content_data import ContentData
+from ai_assistant_manager.exporters.exporter import create_dir, does_data_exist
+
+
+class DirectoryExporter:
+    """
+    Handles exporting data from a directory to a JSON file.
+    """
+
+    def __init__(self, directory: str):
+        """
+        Initialize the DirectoryExporter with the target directory.
+
+        :param directory: The directory to export data from.
+        """
+        self.directory = directory
+
+    def export(self):
+        """
+        Export the directory data to a JSON file if it doesn't already exist.
+        """
+        if does_data_exist(self.get_file_path()):
+            logger.info(f"Directory '{self.directory}' data exits. Skipping export.")
+            return
+
+        logger.info(f"Exporting directory '{self.directory}' data")
+        create_dir(self.get_dir_path(), self.get_file_path())
+        self.write_data()
+
+    def write_data(self):
+        """
+        Write the loaded data to a JSON file.
+        """
+        data = self.load()
+
+        data_as_dicts = {data.title: asdict(data) for data in data}
+        json_data = json.dumps(data_as_dicts)
+
+        with open(self.get_file_path(), "w", encoding=UTF_8) as file:
+            file.write(json_data)
+
+        logger.info(f"Directory '{self.directory}' data written to file: {self.get_file_path()}")
+
+    def load(self):
+        """
+        Load data from files in the directory.
+
+        :return: A list of ContentData objects.
+        """
+        files = os.listdir(self.get_data_dir_path())
+        return [self.file_load(filename) for filename in files]
+
+    def file_load(self, filename: str) -> ContentData:
+        """
+        Load data from a single file.
+
+        :param filename: The name of the file to load.
+        :return: A ContentData object with the file's data.
+        """
+        file_id = filename[:3]
+        name, _ = os.path.splitext(filename)
+        title = name[3:].strip()
+
+        with open(
+            os.path.join(self.get_data_dir_path(), filename),
+            "r",
+            encoding=UTF_8,
+        ) as file:
+            lines = file.readlines()
+
+        body = "\n".join([line.strip() for line in lines[1:]])
+
+        date = parser.parse(lines[0].strip()).isoformat()
+
+        return ContentData(
+            id=file_id,
+            title=title,
+            body=body,
+            date=date,
+        )
+
+    def get_dir_path(self) -> str:
+        """
+        Get the path to the directory.
+
+        :return: The directory path.
+        """
+        return os.path.join(
+            ENV_VARIABLES.bin_dir,
+            self.directory,
+        )
+
+    def get_file_path(self) -> str:
+        """
+        Get the path to the JSON file where data will be exported.
+
+        :return: The file path.
+        """
+        return os.path.join(
+            self.get_dir_path(),
+            f"{ENV_VARIABLES.data_file_prefix} - {self.directory}.json",
+        )
+
+    def get_data_dir_path(self) -> str:
+        """
+        Get the path to the directory containing the data files.
+
+        :return: The data directory path.
+        """
+        return os.path.join(ENV_VARIABLES.data_dir, self.directory)
+
+```
+
+## pyproject.toml
+
+### Summary
+
+This code is a configuration file for a Python project named "ai-assistant-manager". It specifies build instructions, dependencies, project metadata, and scripts for development environments using the Hatch build system. Key features include:
+
+- **Project Metadata**: Name, description, versioning, authors, no, keywords for searchability, and project status.
+- **Dependencies**: Specifies packages required for the project such as `loguru`, `openai`, and `python-dotenv`.
+- **Build Configuration**: Defines how to build source distributions (sdist) and wheels, including which directories to include.
+- **Development Environment**: Configures a default virtual environment with dependencies for static analysis and testing.
+- **Scripts**: Contains definitions for tasks like running end-to-end tests, unit tests, and publishing the package.
+- **Static Analysis**: Uses tools like Ruff for linting, with a configuration file for custom settings.
+
+Overall, the file outlines how to build, maintain, and develop the project effectively.
+
+```toml
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "ai-assistant-manager"
+dynamic = ["version"]
+description = "This repository provides tools and services to manage OpenAI Assistants, including creating, listing, and deleting assistants, as well as handling vector stores and retrieval files."
+no = { file = "no" }
+readme = "README.md"
+authors = [{ name = "Justin Beall", email = "jus.beall@gmail.com" }]
+requires-python = ">=3.11"
+dependencies = ["loguru", "openai", "python-dateutil", "python-dotenv", "twine"]
+keywords = [
+    "AI",
+    "API",
+    "artificial intelligence",
+    "assistant",
+    "automation",
+    "chatbot",
+    "data science",
+    "deep learning",
+    "machine learning",
+    "management",
+    "natural language processing",
+    "NLP",
+    "openai",
+    "python",
+    "vector store",
+]
+
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "no :: OSI Approved :: MIT no",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+]
+
+[project.urls]
+repository = "https://github.com/DEV3L/open-ai-assistant"
+
+[tool.hatch.version]
+path = "setup.cfg"
+pattern = "version = (?P<version>\\S+)"
+
+[tool.hatch.build.targets.sdist]
+include = ["/ai_assistant_manager"]
+artifact = { name = "ai-assistant-manager" }
+
+[tool.hatch.build.targets.wheel]
+packages = ["ai_assistant_manager"]
+artifact = { name = "ai-assistant-manager" }
+
+[tool.hatch.envs.default]
+type = "virtual"
+path = ".venv"
+dependencies = ["pyright", "pytest", "pytest-cov"]
+
+[tool.hatch.envs.default.scripts]
+e2e = "python run_end_to_end.py"
+test = "pytest --cache-clear --cov --cov-report lcov --cov-report term"
+publish = "rm -rf bin && rm -rf dist && hatch build && twine upload dist/*"
+
+[tool.hatch.envs.hatch-static-analysis]
+config-path = "ruff_defaults.toml"
+
+[tool.ruff]
+extend = "ruff_defaults.toml"
+
+[tool.ruff.lint.flake8-tidy-imports]
+ban-relative-imports = "parents"
+
+```
+
+## files_exporter_test.py
+
+### Summary
+
+This code is a set of unit tests for the `FilesExporter` class in the `ai_assistant_manager` module, using the `pytest` framework and `unittest.mock` for mocking dependencies.
+
+Key components include:
+
+1. **Fixture Setup**: A fixture named `exporter` creates an instance of `FilesExporter` with a specified file name and data directory for testing.
+
+2. **Tests**:
+   - `test_export_data_exists`: Validates that the directory is not created if data already exists.
+   - `test_export_data_does_not_exist`: Ensures that when data doesn't exist, a directory is created and data is written.
+   - `test_write_data`: Confirms that the `write_data` method correctly copies a file to the target path.
+   - `test_get_dir_path`: Checks that `get_dir_path` returns the accurate directory path.
+   - `test_get_file_path`: Verifies that `get_file_path` returns the correct file path based on the specified naming convention.
+
+These tests ensure the expected behaviors of the `FilesExporter` methods under different scenarios by using mocking to simulate dependencies.
+
+```py
+from unittest.mock import Mock, patch
+
+import pytest
+
+from ai_assistant_manager.env_variables import ENV_VARIABLES
+from ai_assistant_manager.exporters.files.files_exporter import FilesExporter
+
+FILE_NAME = "test_file.txt"
+DATA_DIRECTORY = "test_dir"
+
+
+@pytest.fixture(name="exporter")
+def build_exporter() -> FilesExporter:
+    """
+    Fixture to create a FilesExporter instance for testing.
+    """
+    return FilesExporter(FILE_NAME, directory=DATA_DIRECTORY)
+
+
+@patch("ai_assistant_manager.exporters.files.files_exporter.create_dir")
+@patch("ai_assistant_manager.exporters.files.files_exporter.does_data_exist")
+def test_export_data_exists(mock_does_data_exist: Mock, mock_create_dir: Mock, exporter: FilesExporter) -> None:
+    """
+    Test that export does not create directory if data already exists.
+    """
+    mock_does_data_exist.return_value = True
+
+    exporter.export()
+
+    mock_create_dir.assert_not_called()
+
+
+@patch("ai_assistant_manager.exporters.files.files_exporter.create_dir")
+@patch("ai_assistant_manager.exporters.files.files_exporter.does_data_exist")
+def test_export_data_does_not_exist(mock_does_data_exist: Mock, mock_create_dir: Mock, exporter: FilesExporter) -> None:
+    """
+    Test that export creates directory and writes data if data does not exist.
+    """
+    mock_does_data_exist.return_value = False
+
+    exporter.write_data = Mock()
+
+    exporter.export()
+
+    mock_create_dir.assert_called_once()
+    exporter.write_data.assert_called_once()
+
+
+@patch("ai_assistant_manager.exporters.files.files_exporter.shutil")
+def test_write_data(mock_shutil: Mock, exporter: FilesExporter) -> None:
+    """
+    Test that write_data correctly copies the file to the target path.
+    """
+    exporter.get_file_path = Mock(return_value="path/to/file")
+
+    exporter.write_data()
+
+    mock_shutil.copy.assert_called_once_with(f"{ENV_VARIABLES.data_dir}/{DATA_DIRECTORY}/{FILE_NAME}", "path/to/file")
+
+
+def test_get_dir_path(exporter: FilesExporter) -> None:
+    """
+    Test that get_dir_path returns the correct directory path.
+    """
+    result = exporter.get_dir_path()
+
+    assert result == f"{ENV_VARIABLES.bin_dir}/{DATA_DIRECTORY}"
+
+
+def test_get_file_path(exporter: FilesExporter) -> None:
+    """
+    Test that get_file_path returns the correct file path.
+    """
+    result = exporter.get_file_path()
+
+    assert result == f"{ENV_VARIABLES.bin_dir}/{DATA_DIRECTORY}/{ENV_VARIABLES.data_file_prefix} - {FILE_NAME}"
+
+```
+
+## assistant_service_test.py
+
+### Summary
+
+This code defines a set of unit tests for the `AssistantService` class in a mock environment using the `unittest` framework. The tests cover various functionalities of the `AssistantService`:
+
+1. **Setup**: Initializes a mock client and an `AssistantService` instance.
+
+2. **Tests for Assistant ID**:
+
+   - Validates the retrieval of an existing assistant ID.
+   - Tests the creation of a new assistant if one does not exist.
+
+3. **Tests for Vector Store IDs**:
+
+   - Checks if existing vector stores can be retrieved.
+   - Verifies the creation of vector stores and handling of failed file creations.
+
+4. **Validation of Vector Stores**: Ensures successful validation returns the correct vector store ID.
+
+5. **File Retrieval**:
+
+   - Asserts retrieval of existing file IDs and the creation process of new retrieval files.
+
+6. **Deletion of Assistants**:
+   - Tests for the deletion of assistants and associated files if they exist.
+   - Checks that no actions are taken when no assistants or files are present to delete.
+
+The code makes extensive use of mocking to simulate interactions with the client without needing a real backend service.
+
+```py
+from unittest import TestCase, mock
+from unittest.mock import MagicMock, mock_open, patch
+
+from ai_assistant_manager.assistants.assistant_service import AssistantService
+from ai_assistant_manager.env_variables import ENV_VARIABLES
+
+
+class TestAssistantService(TestCase):
+    service: AssistantService
+    prompt = "A helpful assistant"
+
+    def setUp(self):
+        """
+        Set up the test case with a mocked client and an AssistantService instance.
+        """
+        self.mock_client = MagicMock()
+        self.service = AssistantService(self.mock_client, self.prompt)
+
+    def test_get_assistant_id_exists(self):
+        """
+        Test that get_assistant_id returns the correct ID when the assistant already exists.
+        """
+        mock_assistant = MagicMock(id="456")
+        mock_assistant.name = ENV_VARIABLES.assistant_name
+        self.mock_client.assistants_list = MagicMock(
+            return_value=[
+                mock_assistant,
+            ]
+        )
+
+        result = self.service.get_assistant_id()
+
+        assert result == "456"
+        self.mock_client.assistants_list.assert_called_once()
+        self.mock_client.assistants_create.assert_not_called()
+
+    def test_get_assistant_id_not_exists(self):
+        """
+        Test that get_assistant_id creates a new assistant when it does not exist.
+        """
+        self.mock_client.assistants_list = MagicMock(return_value=[])
+
+        result = self.service.get_assistant_id()
+
+        assert result == self.mock_client.assistants_create.return_value.id
+
+    def test_get_vector_store_ids_exists(self):
+        """
+        Test that get_vector_store_ids returns the correct IDs when vector stores already exist.
+        """
+        self.mock_client.vector_stores_list = MagicMock(
+            return_value=[
+                MagicMock(filename=f"{ENV_VARIABLES.data_file_prefix} vector store", id="654"),
+            ]
+        )
+
+        result = self.service.get_vector_store_ids()
+
+        assert result == ["654"]
+        self.mock_client.vector_stores_list.assert_called_once()
+        self.mock_client.create_vector_stores.assert_not_called()
+
+    def test_create_vector_stores(self):
+        """
+        Test that create_vector_stores creates vector stores and returns their IDs.
+        """
+        expected_vector_store_id = "vector_store_id"
+        expected_file_ids = ["file1_id", "file2_id"]
+        self.mock_client.vector_stores_create.return_value = expected_vector_store_id
+        self.mock_client.vector_stores_files.return_value = [
+            MagicMock(status="completed"),
+        ]
+
+        self.service.get_retrieval_file_ids = lambda: expected_file_ids
+
+        vector_store_ids = self.service.create_vector_stores()
+
+        assert vector_store_ids == [expected_vector_store_id]
+        self.mock_client.vector_stores_create.assert_called_with(mock.ANY, expected_file_ids)
+        self.mock_client.vector_stores_files.assert_called_with(expected_vector_store_id)
+
+    def test_create_vector_stores_with_failed_files(self):
+        """
+        Test that create_vector_stores handles failed files correctly.
+        """
+        expected_vector_store_id = "vector_store_id"
+        expected_file_ids = ["file1_id", "file2_id"]
+        self.mock_client.vector_stores_create.return_value = expected_vector_store_id
+        self.mock_client.vector_stores_files.side_effect = [
+            [MagicMock(status="failed", id="abc")],
+            lambda: Exception("Failed to create vector store"),
+            [MagicMock(status="completed", id="def")],
+        ]
+        self.mock_client.files_get.return_value = MagicMock(filename="file_name")
+        self.service.get_retrieval_file_ids = lambda: expected_file_ids
+
+        mock_os_walk = [("root", None, ["file_name"])]
+
+        with patch("os.walk", return_value=mock_os_walk), patch("builtins.open", mock_open(read_data="data")):
+            vector_store_ids = self.service.create_vector_stores()
+
+        assert vector_store_ids == [expected_vector_store_id]
+        self.mock_client.vector_stores_file_delete.assert_called_with(expected_vector_store_id, "abc")
+        self.mock_client.vector_stores_create.assert_called_with(mock.ANY, expected_file_ids)
+        self.mock_client.vector_stores_files.assert_called_with(expected_vector_store_id)
+
+    def test_validate_vector_stores(self):
+        """
+        Test that _validate_vector_stores returns the correct vector store ID when validation is successful.
+        """
+        expected_vector_store_id = "vector_store_id"
+
+        self.mock_client.vector_stores_files.return_value = [
+            MagicMock(status="completed"),
+        ]
+
+        vector_store_id = self.service._validate_vector_stores(expected_vector_store_id)
+
+        assert vector_store_id == expected_vector_store_id
+
+    def test_get_retrieval_file_ids_exists(self):
+        """
+        Test that get_retrieval_file_ids returns the correct IDs when retrieval files already exist.
+        """
+        self.mock_client.files_list = MagicMock(
+            return_value=[
+                MagicMock(filename=f"{ENV_VARIABLES.data_file_prefix} blogs.json", id="456"),
+            ]
+        )
+
+        result = self.service.get_retrieval_file_ids()
+
+        assert result == ["456"]
+        self.mock_client.files_list.assert_called_once()
+        self.mock_client.files_create.assert_not_called()
+
+    def test_create_retrieval_files(self):
+        """
+        Test that create_retrieval_files creates retrieval files and returns their IDs.
+        """
+        self.mock_client.files_create.return_value.id = "file_id"
+
+        mock_os_walk = [("root", None, ["file1", "file2"])]
+        expected_file_ids = ["file_id", "file_id"]
+
+        with patch("os.walk", return_value=mock_os_walk), patch("builtins.open", mock_open(read_data="data")):
+            actual_file_ids = self.service.create_retrieval_files()
+
+        assert actual_file_ids == expected_file_ids
+        self.mock_client.files_create.assert_called_with(mock.ANY, "assistants")
+
+    # pylint: disable=protected-access
+    def test_delete_assistant_with_existing_assistant_and_files(self):
+        """
+        Test that delete_assistant deletes the assistant and associated files when they exist.
+        """
+        self.service._find_existing_assistant = MagicMock(return_value="assistant_id")
+        self.service._find_existing_vector_stores = MagicMock(return_value=["vs1_id", "vs2_id"])
+        self.service._find_existing_retrieval_files = MagicMock(return_value=["file1_id", "file2_id"])
+
+        self.service.delete_assistant()
+
+        self.service._find_existing_assistant.assert_called_once()
+        self.service._find_existing_vector_stores.assert_called_once()
+        self.service._find_existing_retrieval_files.assert_called_once()
+        self.mock_client.assistants_delete.assert_called_once_with("assistant_id")
+        self.mock_client.vector_stores_delete.assert_any_call("vs1_id")
+        self.mock_client.vector_stores_delete.assert_any_call("vs2_id")
+        self.mock_client.files_delete.assert_any_call("file1_id")
+        self.mock_client.files_delete.assert_any_call("file2_id")
+
+    def test_delete_assistant_with_no_existing_assistant_and_files(self):
+        """
+        Test that delete_assistant does not delete anything when no assistant or files exist.
+        """
+        self.service._find_existing_assistant = MagicMock(return_value=None)
+        self.service._find_existing_retrieval_files = MagicMock(return_value=None)
+
+        self.service.delete_assistant()
+
+        self.service._find_existing_assistant.assert_called_once()
+        self.service._find_existing_retrieval_files.assert_called_once()
+        self.mock_client.assistants_delete.assert_not_called()
+        self.mock_client.files_delete.assert_not_called()
+
+    # pylint: enable=protected-access
+
+```
+
+## continuous-integration.yml
+
+### Summary
+
+This GitHub Actions workflow named "Continuous Integration" is triggered on any push to any branch. It runs a job called "Tests" on the latest Ubuntu environment. The workflow performs the following steps:
+
+1. Checks out the code from the repository.
+2. Sets up Python (version 3.x).
+3. Installs the 'hatch' dependency and creates a virtual environment.
+4. Executes unit tests defined in the project using 'hatch'.
+
+```yml
+name: Continuous Integration
+
+on:
+  push:
+    branches: ["**"]
+
+jobs:
+  tests:
+    name: "Tests"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.x"
+      - name: Install dependencies
+        run: |
+          python -m pip install hatch
+          hatch env create
+      - name: Unit tests
+        run: |
+          hatch run test
+```
+
+## openai_api_test.py
+
+### Summary
+
+This code is a set of unit tests written in Python using the `unittest` framework to test the functionality of an OpenAI API client.
+
+1. **Test Setup**: It mocks the OpenAI API client for controlled testing.
+2. **Testing Functions**:
+   - `test_build_openai_client`: Verifies the client is instantiated with the correct timeout.
+   - `test_threads_create`, `test_messages_list`, etc.: Tests various methods of the `OpenAIClient`, ensuring they call the correct OpenAI API methods with the expected parameters.
+   - `test_vector_stores_create`, `test_vector_stores_update`: Extensively test vector store operations, including handling polling and logging for failures.
+   - Other functions like `assistants_create`, `files_get`, and vector store file management are also tested for correctness and proper method calls.
+3. **Assertions**: The tests assert that the expected methods on the mocked OpenAI client are called with appropriate arguments, ensuring that the `OpenAIClient` behaves as intended.
+
+Overall, the code aims to ensure that the OpenAI API interactions in the client wrapper function correctly according to the specified logic and expected behaviors.
+
+```py
+from unittest import TestCase
+from unittest.mock import MagicMock, patch
+
+from ai_assistant_manager.clients.openai_api import OpenAIClient, build_openai_client
+
+
+@patch("ai_assistant_manager.clients.openai_api.OpenAI")
+def test_build_openai_client(mock_openai):
+    """
+    Test that build_openai_client returns an instance of OpenAI with the correct timeout.
+    """
+    client = build_openai_client()
+
+    assert client is mock_openai.return_value
+    mock_openai.assert_called_once_with(timeout=90)
+
+
+class TestOpenAIClient(TestCase):
+    client: OpenAIClient
+    mock_open_ai: MagicMock
+
+    def setUp(self):
+        """
+        Set up the test case with a mocked OpenAI instance.
+        """
+        self.mock_open_ai = MagicMock()
+        self.client = OpenAIClient(self.mock_open_ai)
+
+    def test_threads_create(self):
+        """
+        Test that threads_create calls the correct OpenAI API method.
+        """
+        self.client.threads_create()
+        self.mock_open_ai.beta.threads.create.assert_called()
+
+    def test_messages_list(self):
+        """
+        Test that messages_list calls the correct OpenAI API method with the correct parameters.
+        """
+        thread_id = "thread_id"
+        self.client.messages_list(thread_id)
+        self.mock_open_ai.beta.threads.messages.list.assert_called_once_with(thread_id)
+
+    def test_messages_create(self):
+        """
+        Test that messages_create calls the correct OpenAI API method with the correct parameters.
+        """
+        thread_id = "thread_id"
+        content = "Hello"
+        role = "user"
+        self.client.messages_create(thread_id, content, role)
+        self.mock_open_ai.beta.threads.messages.create.assert_called_once_with(
+            thread_id=thread_id, content=content, role=role
+        )
+
+    def test_runs_create(self):
+        """
+        Test that runs_create calls the correct OpenAI API method with the correct parameters.
+        """
+        thread_id = "thread_id"
+        assistant_id = "assistant_id"
+        self.client.runs_create(assistant_id, thread_id, False)
+        self.mock_open_ai.beta.threads.runs.create_and_poll.assert_called_once_with(
+            thread_id=thread_id, assistant_id=assistant_id, tool_choice=None
+        )
+
+    def test_runs_create_with_tool_choice(self):
+        """
+        Test that runs_create calls the correct OpenAI API method with tool choice.
+        """
+        thread_id = "thread_id"
+        assistant_id = "assistant_id"
+        self.client.runs_create(assistant_id, thread_id, True)
+        self.mock_open_ai.beta.threads.runs.create_and_poll.assert_called_once_with(
+            thread_id=thread_id, assistant_id=assistant_id, tool_choice={"type": "file_search"}
+        )
+
+    def test_runs_retrieve(self):
+        """
+        Test that runs_retrieve calls the correct OpenAI API method with the correct parameters.
+        """
+        run_id = "run_id"
+        thread_id = "thread_id"
+        self.client.runs_retrieve(run_id, thread_id)
+        self.mock_open_ai.beta.threads.runs.retrieve.assert_called_once_with(run_id, thread_id=thread_id)
+
+    def test_assistants_list(self):
+        """
+        Test that assistants_list calls the correct OpenAI API method.
+        """
+        self.client.assistants_list()
+        self.mock_open_ai.beta.assistants.list.assert_called_once()
+
+    def test_assistants_create(self):
+        """
+        Test that assistants_create calls the correct OpenAI API method with the correct parameters.
+        """
+        name = "assistant_name"
+        instructions = "instructions"
+        tools = [{"tool_name": "tool"}]
+        vector_store_ids = ["vector_store_id"]
+        self.client.assistants_create(name, instructions, vector_store_ids, tools)
+        self.mock_open_ai.beta.assistants.create.assert_called_once_with(
+            name=name,
+            instructions=instructions,
+            model="gpt-4o-2024-08-06",
+            tool_resources={"file_search": {"vector_store_ids": vector_store_ids}},
+            tools=tools,
+        )
+
+    def test_assistants_delete(self):
+        """
+        Test that assistants_delete calls the correct OpenAI API method with the correct parameters.
+        """
+        assistant_id = "assistant_id"
+        self.client.assistants_delete(assistant_id)
+        self.mock_open_ai.beta.assistants.delete.assert_called_once_with(assistant_id)
+
+    def test_files_list(self):
+        """
+        Test that files_list calls the correct OpenAI API method and returns the expected result.
+        """
+        files = self.client.files_list()
+        self.mock_open_ai.files.list.assert_called_once()
+        assert files == self.mock_open_ai.files.list.return_value
+
+    def test_files_get(self):
+        """
+        Test that files_get calls the correct OpenAI API method with the correct parameters and returns the expected result.
+        """
+        file_id = "file_id"
+        file = self.client.files_get(file_id)
+        self.mock_open_ai.files.retrieve.assert_called_once_with(file_id)
+        assert file == self.mock_open_ai.files.retrieve.return_value
+
+    def test_files_create(self):
+        """
+        Test that files_create calls the correct OpenAI API method with the correct parameters.
+        """
+        file = MagicMock()
+        purpose = "assistants"
+        self.client.files_create(file, purpose)
+        self.mock_open_ai.files.create.assert_called_once_with(file=file, purpose=purpose)
+
+    def test_files_delete(self):
+        """
+        Test that files_delete calls the correct OpenAI API method with the correct parameters.
+        """
+        file_id = "file_id"
+        self.client.files_delete(file_id)
+        self.mock_open_ai.files.delete.assert_called_once_with(file_id)
+
+    def test_vector_stores_list(self):
+        """
+        Test that vector_stores_list calls the correct OpenAI API method and returns the expected result.
+        """
+        vector_stores = self.client.vector_stores_list()
+        self.mock_open_ai.beta.vector_stores.list.assert_called_once()
+        assert vector_stores == self.mock_open_ai.beta.vector_stores.list.return_value
+
+    def test_vector_stores_retrieve(self):
+        """
+        Test that vector_stores_retrieve calls the correct OpenAI API method with the correct parameters and returns the expected result.
+        """
+        vector_store_id = "vector_store_id"
+        vector_store = self.client.vector_stores_retrieve(vector_store_id)
+        self.mock_open_ai.beta.vector_stores.retrieve.assert_called_once_with(vector_store_id)
+        assert vector_store == self.mock_open_ai.beta.vector_stores.retrieve.return_value
+
+    @patch("ai_assistant_manager.clients.openai_api.time")
+    def test_vector_stores_create(self, mock_time):
+        """
+        Test that vector_stores_create calls the correct OpenAI API method and handles polling correctly.
+        """
+        file_ids = ["file_id"]
+        name = "vector_store_name"
+        self.mock_open_ai.beta.vector_stores.retrieve.side_effect = [
+            MagicMock(status="pending", file_counts=MagicMock(failed=0)),
+            MagicMock(status="completed", file_counts=MagicMock(failed=0)),
+        ]
+        vector_store_id = self.client.vector_stores_create(name, file_ids)
+        self.mock_open_ai.beta.vector_stores.create.assert_called_once_with(name=name, file_ids=file_ids)
+        assert vector_store_id == self.mock_open_ai.beta.vector_stores.create.return_value.id
+        assert mock_time.sleep.call_count == 1
+
+    @patch("ai_assistant_manager.clients.openai_api.logger")
+    def test_vector_stores_create_with_failed_files(self, mock_logger):
+        """
+        Test that vector_stores_create logs a warning if there are failed files.
+        """
+        file_ids = ["file_id"]
+        name = "vector_store_name"
+        self.mock_open_ai.beta.vector_stores.retrieve.side_effect = [
+            MagicMock(status="completed", file_counts=MagicMock(failed=1)),
+        ]
+        self.client.vector_stores_create(name, file_ids)
+        self.mock_open_ai.beta.vector_stores.create.assert_called_once_with(name=name, file_ids=file_ids)
+        assert mock_logger.warning.call_count == 1
+
+    @patch("ai_assistant_manager.clients.openai_api.time")
+    @patch("ai_assistant_manager.clients.openai_api.logger")
+    def test_vector_stores_update(self, mock_logger, mock_time):
+        """
+        Test that vector_stores_update calls the correct OpenAI API method and handles polling and logging correctly.
+        """
+        expected_vector_store_id = "vector_store_id"
+        file_ids = ["file_id"]
+        self.mock_open_ai.beta.vector_stores.retrieve.side_effect = [
+            MagicMock(status="pending", file_counts=MagicMock(failed=0)),
+            MagicMock(status="completed", file_counts=MagicMock(failed=1)),
+        ]
+        vector_store_id = self.client.vector_stores_update(expected_vector_store_id, file_ids)
+        self.mock_open_ai.beta.vector_stores.files.create.assert_called_once_with(vector_store_id, file_id=file_ids[0])
+        assert vector_store_id == expected_vector_store_id
+        assert mock_time.sleep.call_count == 1
+        assert mock_logger.warning.call_count == 1
+
+    def test_vector_stores_delete(self):
+        """
+        Test that vector_stores_delete calls the correct OpenAI API method with the correct parameters.
+        """
+        vector_store_id = "vector_store_id"
+        self.client.vector_stores_delete(vector_store_id)
+        self.mock_open_ai.beta.vector_stores.delete.assert_called_once_with(vector_store_id)
+
+    def test_vector_stores_file_delete(self):
+        """
+        Test that vector_stores_file_delete calls the correct OpenAI API methods with the correct parameters.
+        """
+        vector_store_id = "vector_store_id"
+        file_id = "file_id"
+        self.client.vector_stores_file_delete(vector_store_id, file_id)
+        self.mock_open_ai.beta.vector_stores.files.delete.assert_called_once_with(
+            file_id, vector_store_id=vector_store_id
+        )
+        self.mock_open_ai.files.delete.assert_called_once_with(file_id)
+
+    def test_vector_stores_files(self):
+        """
+        Test that vector_stores_files calls the correct OpenAI API method with the correct parameters and returns the expected result.
+        """
+        vector_store_id = "vector_store_id"
+        vector_store_files = self.client.vector_stores_files(vector_store_id)
+        self.mock_open_ai.beta.vector_stores.files.list.assert_called_once_with(vector_store_id, limit=100)
+        assert vector_store_files == self.mock_open_ai.beta.vector_stores.files.list.return_value
+
+```
+
+## openai_api.py
+
+### Summary
+
+The provided code defines an `OpenAIClient` class to interact with the OpenAI API. It contains:
+
+1. **Initialization**: The client initializes with an OpenAI instance and an optional model name.
+2. **Thread Management**: Methods for creating threads and listing or managing messages within those threads.
+3. **Run Management**: Methods for creating, retrieving, and polling runs in threads.
+4. **Assistant Management**: Methods for creating, listing, and deleting assistants.
+5. **File Management**: Methods for managing files, including listing, retrieving, creating, and deleting them.
+6. **Vector Store Management**: Methods to manage vector stores, including creating, updating, retrieving, listing, and deleting vector stores and their associated files.
+7. **Utility Functionalities**: Each operation uses a decorator `@timer` to track its execution time.
+
+Overall, this class provides a structured interface for interacting with various OpenAI features and resources efficiently.
+
+```py
+import time
+from io import BufferedReader
+from typing import Literal
+
+from loguru import logger
+from openai import OpenAI
+
+from ai_assistant_manager.env_variables import ENV_VARIABLES
+from ai_assistant_manager.timer.timer import timer
+
+
+def build_openai_client():
+    """
+    Build and return an OpenAI client with a specified timeout.
+
+    :return: An instance of OpenAI client with a 90-second timeout.
+    """
+    return OpenAI(timeout=90)
+
+
+class OpenAIClient:
+    """
+    A client class to interact with the OpenAI API, providing various methods to manage threads,
+    messages, runs, assistants, files, and vector stores.
+    """
+
+    def __init__(self, open_ai: OpenAI, *, open_ai_model: str | None = None):
+        """
+        Initialize the OpenAIClient with an OpenAI instance.
+
+        :param open_ai: An instance of the OpenAI client.
+        """
+        self.open_ai = open_ai
+        self.open_ai_model = open_ai_model if open_ai_model else ENV_VARIABLES.openai_model
+
+    @timer("OpenAIClient.threads_create")
+    def threads_create(self):
+        """
+        Create a new thread using the OpenAI API.
+
+        :return: The created thread object.
+        """
+        return self.open_ai.beta.threads.create()
+
+    @timer("OpenAIClient.messages_list")
+    def messages_list(self, thread_id: str):
+        """
+        List all messages in a specified thread.
+
+        :param thread_id: The ID of the thread to list messages from.
+        :return: A list of messages in the thread.
+        """
+        return self.open_ai.beta.threads.messages.list(thread_id)
+
+    @timer("OpenAIClient.messages_create")
+    def messages_create(self, thread_id: str, content: str, role: Literal["user", "assistant"]):
+        """
+        Create a new message in a specified thread.
+
+        :param thread_id: The ID of the thread to create a message in.
+        :param content: The content of the message.
+        :param role: The role of the message sender (either "user" or "assistant").
+        :return: The created message object.
+        """
+        return self.open_ai.beta.threads.messages.create(
+            thread_id=thread_id,
+            content=content,
+            role=role,
+        )
+
+    @timer("OpenAIClient.runs_create")
+    def runs_create(self, assistant_id: str, thread_id: str, should_force_tool_call: bool):
+        """
+        Create and poll a new run in a specified thread.
+
+        :param assistant_id: The ID of the assistant to create a run for.
+        :param thread_id: The ID of the thread to create a run in.
+        :param should_force_tool_call: Whether to force a tool call during the run.
+        :return: The created run object.
+        """
+        return self.open_ai.beta.threads.runs.create_and_poll(
+            assistant_id=assistant_id,
+            thread_id=thread_id,
+            tool_choice={"type": "file_search"} if should_force_tool_call else None,
+        )
+
+    @timer("OpenAIClient.runs_retrieve")
+    def runs_retrieve(self, run_id: str, thread_id: str):
+        """
+        Retrieve a specific run in a specified thread.
+
+        :param run_id: The ID of the run to retrieve.
+        :param thread_id: The ID of the thread the run belongs to.
+        :return: The retrieved run object.
+        """
+        return self.open_ai.beta.threads.runs.retrieve(run_id, thread_id=thread_id)
+
+    @timer("OpenAIClient.assistants_list")
+    def assistants_list(self):
+        """
+        List all assistants.
+
+        :return: A list of assistants.
+        """
+        return self.open_ai.beta.assistants.list()
+
+    @timer("OpenAIClient.assistants_create")
+    def assistants_create(
+        self,
+        name: str,
+        instructions: str,
+        vector_store_ids: list[str],
+        tools: list[dict] = None,
+    ):
+        """
+        Create a new assistant with specified parameters.
+
+        :param name: The name of the assistant.
+        :param instructions: The instructions for the assistant.
+        :param vector_store_ids: A list of vector store IDs associated with the assistant.
+        :param tools: A list of tools to be used by the assistant (optional).
+        :return: The created assistant object.
+        """
+        return self.open_ai.beta.assistants.create(
+            name=name,
+            instructions=instructions,
+            model=self.open_ai_model,
+            tool_resources={"file_search": {"vector_store_ids": vector_store_ids}},
+            tools=tools,
+        )
+
+    @timer("OpenAIClient.assistants_delete")
+    def assistants_delete(self, assistant_id: str):
+        """
+        Delete a specified assistant.
+
+        :param assistant_id: The ID of the assistant to delete.
+        """
+        self.open_ai.beta.assistants.delete(assistant_id)
+
+    @timer("OpenAIClient.files_list")
+    def files_list(self):
+        """
+        List all files.
+
+        :return: A list of files.
+        """
+        return self.open_ai.files.list()
+
+    @timer("OpenAIClient.files_get")
+    def files_get(self, file_id: str):
+        """
+        Retrieve a specific file.
+
+        :param file_id: The ID of the file to retrieve.
+        :return: The retrieved file object.
+        """
+        return self.open_ai.files.retrieve(file_id)
+
+    @timer("OpenAIClient.files_create")
+    def files_create(self, file: BufferedReader, purpose: Literal["assistants", "batch", "fine-tune"]):
+        """
+        Create a new file with a specified purpose.
+
+        :param file: The file to be uploaded.
+        :param purpose: The purpose of the file (e.g., "assistants", "batch", "fine-tune").
+        :return: The created file object.
+        """
+        return self.open_ai.files.create(file=file, purpose=purpose)
+
+    @timer("OpenAIClient.files_delete")
+    def files_delete(self, file_id: str):
+        """
+        Delete a specified file.
+
+        :param file_id: The ID of the file to delete.
+        """
+        self.open_ai.files.delete(file_id)
+
+    @timer("OpenAIClient.vector_stores_list")
+    def vector_stores_list(self):
+        """
+        List all vector stores.
+
+        :return: A list of vector stores.
+        """
+        return self.open_ai.beta.vector_stores.list()
+
+    @timer("OpenAIClient.vector_stores_retrieve")
+    def vector_stores_retrieve(self, vector_store_id: str):
+        """
+        Retrieve a specific vector store.
+
+        :param vector_store_id: The ID of the vector store to retrieve.
+        :return: The retrieved vector store object.
+        """
+        return self.open_ai.beta.vector_stores.retrieve(vector_store_id)
+
+    @timer("OpenAIClient.vector_stores_create")
+    def vector_stores_create(self, name: str, file_ids: list[str]):
+        """
+        Create a new vector store with specified parameters.
+
+        :param name: The name of the vector store.
+        :param file_ids: A list of file IDs to be included in the vector store.
+        :return: The ID of the created vector store.
+        """
+        created_vector_store = self.open_ai.beta.vector_stores.create(name=name, file_ids=file_ids)
+        vector_store_id = created_vector_store.id
+
+        # Poll the vector store until its status is "completed"
+        while (vector_store := self.vector_stores_retrieve(vector_store_id)).status != "completed":
+            logger.info("Waiting for vector store to be ready")
+            time.sleep(5)
+
+        if vector_store.file_counts.failed > 0:
+            logger.warning(
+                f"Some files ({vector_store.file_counts.failed}) failed when uploaded to vector store ({vector_store_id})"
+            )
+
+        return vector_store_id
+
+    @timer("OpenAIClient.vector_stores_update")
+    def vector_stores_update(self, vector_store_id: str, file_ids: list[str]):
+        """
+        Update a vector store by adding new files to it.
+
+        :param vector_store_id: The ID of the vector store to update.
+        :param file_ids: A list of file IDs to add to the vector store.
+        :return: The ID of the updated vector store.
+        """
+        # Add each file to the vector store
+        [self.open_ai.beta.vector_stores.files.create(vector_store_id, file_id=file_id) for file_id in file_ids]
+
+        # Poll the vector store until its status is "completed"
+        while (vector_store := self.vector_stores_retrieve(vector_store_id)).status != "completed":
+            logger.info("Waiting for vector store to be ready")
+            time.sleep(5)
+
+        if vector_store.file_counts.failed > 0:
+            logger.warning(
+                f"Some files ({vector_store.file_counts.failed}) failed when uploaded to vector store ({vector_store_id})"
+            )
+        return vector_store_id
+
+    @timer("OpenAIClient.vector_stores_delete")
+    def vector_stores_delete(self, vector_store_id: str):
+        """
+        Delete a specified vector store.
+
+        :param vector_store_id: The ID of the vector store to delete.
+        """
+        self.open_ai.beta.vector_stores.delete(vector_store_id)
+
+    @timer("OpenAIClient.vector_stores_file_delete")
+    def vector_stores_file_delete(self, vector_store_id: str, file_id: str):
+        """
+        Delete a specific file from a vector store and also delete the file itself.
+
+        :param vector_store_id: The ID of the vector store.
+        :param file_id: The ID of the file to delete.
+        """
+        self.open_ai.beta.vector_stores.files.delete(file_id, vector_store_id=vector_store_id)
+        self.files_delete(file_id)
+
+    @timer("OpenAIClient.vector_stores_files")
+    def vector_stores_files(self, vector_store_id: str):
+        """
+        List all files in a specified vector store.
+
+        :param vector_store_id: The ID of the vector store to list files from.
+        :return: A list of files in the vector store.
+        """
+        return self.open_ai.beta.vector_stores.files.list(vector_store_id, limit=100)
+
+```
+
+## chat.py
+
+### Summary
+
+The `Chat` class manages interactions with an AI assistant by handling chat threads, sending messages, and processing responses. Key functionalities include:
+
+- **Initialization**: Takes an `OpenAIClient` instance, assistant ID, and optionally a thread ID upon creation.
+- **Starting a Chat**: Initiates a new chat thread if one isn't already active.
+- **Sending Messages**: Sends user-defined messages to the chat, runs the thread, and returns the assistant's last response, while managing tool call prefixes.
+- **Running Threads**: A method that runs the chat thread, optionally forcing a tool call, and waits for the response to complete, handling timeouts and errors.
+- **Retrieving Messages**: Contains methods to fetch all messages from the thread and specifically the last message.
+
+The class also incorporates error handling for thread statuses and timeout conditions, facilitating robust communication with the AI.
+
+```py
+import time
+
+from loguru import logger
+
+from ai_assistant_manager.chats.chat_response import ChatResponse
+from ai_assistant_manager.clients.openai_api import OpenAIClient
+from ai_assistant_manager.timer.timer import timer
+
+TOOL_CALL_PREFIX = "tc!"
+
+
+class Chat:
+    """
+    A class to manage chat interactions with an AI assistant. This class handles the creation of threads,
+    sending messages, running threads, and retrieving messages.
+    """
+
+    def __init__(
+        self,
+        client: OpenAIClient,
+        assistant_id: str,
+        *,
+        thread_id: str | None = None,
+    ):
+        """
+        Initialize the Chat instance with a client, assistant ID, and optional thread ID.
+
+        :param client: The OpenAIClient instance to interact with the OpenAI API.
+        :param assistant_id: The ID of the assistant to interact with.
+        :param thread_id: The ID of the thread to use (optional).
+        """
+        self.client = client
+        self.assistant_id = assistant_id
+        self.thread_id = thread_id
+
+    def start(self):
+        """
+        Start a new chat thread if one does not already exist.
+
+        This method ensures that a thread ID is available for the chat session.
+        """
+        logger.info("Starting Chat")
+        # Create a new thread if thread_id is not already set
+        self.thread_id = self.thread_id or self.client.threads_create().id
+        logger.info(f"Thread ID: {self.thread_id}")
+
+    def send_user_message(self, message: str) -> ChatResponse:
+        """
+        Send a user message to the chat thread and run the thread.
+
+        :param message: The message content to send.
+        :return: The last message content from the thread.
+        """
+        self.client.messages_create(
+            self.thread_id,
+            self.remove_tool_call_from_message(message),
+            "user",
+        )
+
+        # Run the thread, potentially forcing a tool call
+        tokens = self.run_thread(self.should_force_tool_call(message))
+        return ChatResponse(message=self.last_message(), token_count=tokens)
+
+    @timer("Run Thread")
+    def run_thread(self, should_force_tool_call: bool) -> int:
+        """
+        Run the thread, potentially forcing a tool call.
+
+        :param should_force_tool_call: Whether to force a tool call during the run.
+        :return: The total number of tokens used in the run.
+        """
+        run = self.client.runs_create(self.assistant_id, self.thread_id, should_force_tool_call)
+        return self._wait_for_run_to_complete(run.id)
+
+    def _wait_for_run_to_complete(self, run_id: str, *, step: float = 0.25, timeout_in_seconds: int = 120) -> int:
+        """
+        Wait for a run to complete, polling at regular intervals.
+
+        :param run_id: The ID of the run to wait for.
+        :param step: The polling interval in seconds.
+        :param timeout_in_seconds: The maximum time to wait in seconds.
+        :raises RuntimeError: If the run fails or times out.
+        :return: The total number of tokens used in the run.
+        """
+        timeout = timeout_in_seconds / step
+
+        while timeout > 0:
+            run = self.client.runs_retrieve(run_id, self.thread_id)
+
+            if run.status in ["completed"]:
+                return run.usage.total_tokens
+            # requires_action will need to be handled by user
+            if run.status in ["failed", "expired", "cancelled", "requires_action"]:
+                raise RuntimeError(f"Run failed with status: {run.status}")
+
+            timeout -= 1
+            time.sleep(step)
+
+        raise RuntimeError(f"Run timed out after {timeout_in_seconds} seconds")
+
+    def last_message(self) -> str:
+        """
+        Retrieve the last message content from the thread.
+
+        :return: The content of the last message.
+        :raises RuntimeError: If no text content is found in the messages.
+        """
+        message_content = self._get_messages()[0].content[0]
+        if hasattr(message_content, "text"):
+            return message_content.text.value
+
+        raise RuntimeError("No text content found in the messages")
+
+    def _get_messages(self):
+        """
+        Retrieve all messages from the thread.
+
+        :return: A list of messages in the thread.
+        """
+        return self.client.messages_list(self.thread_id).data
+
+    def remove_tool_call_from_message(self, message: str) -> str:
+        """
+        Remove the tool call prefix from the message if it exists.
+
+        :param message: The message content to process.
+        :return: The message content without the tool call prefix.
+        """
+        return message.replace(TOOL_CALL_PREFIX, "", 1) if self.should_force_tool_call(message) else message
+
+    def should_force_tool_call(self, message: str) -> bool:
+        """
+        Determine if the message should force a tool call.
+
+        :param message: The message content to check.
+        :return: True if the message starts with the tool call prefix, False otherwise.
+        """
+        return message.startswith(TOOL_CALL_PREFIX)
+
+```
+
+## chat_test.py
+
+### Summary
+
+The code defines a test suite for a `Chat` class using Python's `unittest` framework, along with `pytest` for assertions. It includes several test cases that verify the functionality of methods within the `Chat` class, such as starting a chat, sending messages, and handling run states. Key tests include:
+
+- Verifying thread ID management when starting a chat.
+- Testing the sending of user messages, including the correct invocation of relevant methods and return values.
+- Ensuring proper handling of run completion success, failures, and timeouts.
+- Confirming retrieval of the last message, with checks for content types and handling when no text is available.
+- Validating functionality around tool call management.
+
+Mock objects are used extensively to simulate interactions with external dependencies without requiring actual network calls.
+
+```py
+from unittest import TestCase
+from unittest.mock import MagicMock, patch
+
+import pytest
+from openai.types.beta.threads.text import Text
+from openai.types.beta.threads.text_content_block import TextContentBlock
+
+from ai_assistant_manager.chats.chat import Chat
+from ai_assistant_manager.chats.chat_response import ChatResponse
+
+
+class TestChat(TestCase):
+    chat: Chat
+    assistant_id = "assistant_id"
+
+    mock_client: MagicMock
+
+    def setUp(self):
+        """
+        Set up the test case with a mocked client and a Chat instance.
+        """
+        self.mock_client = MagicMock()
+        self.chat = Chat(self.mock_client, self.assistant_id)
+
+    def test_chat_start_sets_thread_id(self):
+        """
+        Test that starting a chat sets the thread ID correctly.
+        """
+        self.mock_client.threads_create.return_value.id = "thread_id"
+
+        self.chat.start()
+
+        assert self.chat.thread_id == "thread_id"
+
+    def test_chat_start_with_thread(self):
+        """
+        Test that starting a chat with an existing thread ID does not change the thread ID.
+        """
+        self.chat.thread_id = "my_thread_id"
+
+        self.chat.start()
+
+        assert self.chat.thread_id == "my_thread_id"
+
+    def test_send_user_message(self):
+        """
+        Test that sending a user message works correctly and triggers the appropriate methods.
+        """
+        self.mock_client.messages_create.return_value = None
+        self.mock_client.messages_list.return_value.data = [{"content": "Hello"}]
+        self.chat.thread_id = "thread_id"
+        self.chat.run_thread = MagicMock(return_value=10)
+        self.chat.last_message = MagicMock(return_value="Hello")
+
+        result = self.chat.send_user_message("Test message")
+
+        assert result == ChatResponse(message="Hello", token_count=10)
+        self.mock_client.messages_create.assert_called_once_with("thread_id", "Test message", "user")
+        self.chat.run_thread.assert_called_once()
+        self.chat.last_message.assert_called_once()
+
+    def test_chat_run_thread(self):
+        """
+        Test that running a thread creates a run and waits for it to complete.
+        """
+        self.mock_client.runs_create.return_value.id = "run_id"
+        self.chat.thread_id = "thread_id"
+
+        with patch.object(self.chat, "_wait_for_run_to_complete") as mock_wait_for_run_to_complete:
+            self.chat.run_thread(False)
+
+        mock_wait_for_run_to_complete.assert_called_once_with("run_id")
+
+    def test_wait_for_run_to_complete_success(self):
+        """
+        Test that waiting for a run to complete works correctly when the run is successful.
+        """
+        self.mock_client.runs_retrieve.return_value.status = "completed"
+
+        with patch("time.sleep", return_value=None):
+            # pylint: disable=protected-access
+            self.chat._wait_for_run_to_complete("run_id")
+
+        self.mock_client.runs_retrieve.assert_called_with(
+            "run_id",
+            self.chat.thread_id,
+        )
+
+    def test_wait_for_run_to_complete_failure(self):
+        """
+        Test that waiting for a run to complete raises an error when the run fails.
+        """
+        self.mock_client.runs_retrieve.return_value.status = "failed"
+
+        with patch("time.sleep", return_value=None):
+            with pytest.raises(RuntimeError, match="Run failed with status: failed"):
+                # pylint: disable=protected-access
+                self.chat._wait_for_run_to_complete("run_id")
+
+        self.mock_client.runs_retrieve.assert_called_with(
+            "run_id",
+            self.chat.thread_id,
+        )
+
+    def test_wait_for_run_to_complete_timeout(self):
+        """
+        Test that waiting for a run to complete raises an error when the run times out.
+        """
+        self.mock_client.runs_retrieve.return_value.status = "running"
+
+        with patch("time.sleep", return_value=None):
+            with pytest.raises(RuntimeError, match="Run timed out after 1 seconds"):
+                # pylint: disable=protected-access
+                self.chat._wait_for_run_to_complete("run_id", timeout_in_seconds=1)
+
+        self.mock_client.runs_retrieve.assert_called_with(
+            "run_id",
+            self.chat.thread_id,
+        )
+
+    def test_last_message(self):
+        """
+        Test that retrieving the last message works correctly.
+        """
+        self.mock_client.messages_list.return_value.data = [
+            MagicMock(content=[MagicMock(text=MagicMock(value="Hello"))])
+        ]
+        self.chat.thread_id = "thread_id"
+
+        result = self.chat.last_message()
+
+        assert result == "Hello"
+        self.mock_client.messages_list.assert_called_once_with("thread_id")
+
+    def test_last_message_with_text_content(self):
+        """
+        Test that retrieving the last message with text content works correctly.
+        """
+        self.chat._get_messages = MagicMock(
+            return_value=[
+                MagicMock(content=[TextContentBlock(text=Text(annotations=[], value="Hello, world!"), type="text")])
+            ]
+        )
+        assert self.chat.last_message() == "Hello, world!"
+
+    def test_last_message_with_no_text_content(self):
+        """
+        Test that retrieving the last message raises an error when there is no text content.
+        """
+        not_text = MagicMock()
+        delattr(not_text, "text")
+        self.chat._get_messages = MagicMock(return_value=[MagicMock(content=[not_text])])
+        with pytest.raises(RuntimeError, match="No text content found in the messages"):
+            self.chat.last_message()
+
+    def test_remove_tool_call_from_message(self):
+        """
+        Test that removing a tool call from a message works correctly.
+        """
+        assert self.chat.remove_tool_call_from_message("tc! call") == " call"
+        assert self.chat.remove_tool_call_from_message(" tc! call") == " tc! call"
+
+    def test_should_force_tool_call(self):
+        """
+        Test that checking if a message should force a tool call works correctly.
+        """
+        assert self.chat.should_force_tool_call("tc!")
+        assert not self.chat.should_force_tool_call(" tc!")
+
+```
+
+## content_data.py
+
+### Summary
+
+The code defines a data class named `ContentData` using the `dataclass` decorator from the `dataclasses` module. The class has four attributes: `id`, `title`, `body`, and `date`, all of which must be provided as keyword arguments when creating an instance of the class.
+
+```py
+from dataclasses import dataclass
+
+
+@dataclass(kw_only=True)
+class ContentData:
+    id: str
+    title: str
+    body: str
+    date: str
+
+```
+
+## env_variables.py
+
+### Summary
+
+The provided code defines a data class `EnvVariables` to hold various environment variables related to an AI assistant, such as its name and model. It includes a function `set_env_variables` that loads these variables from a specified `.env` file or a default one in the current directory, updating the global instance `ENV_VARIABLES`. The global instance is initialized with either the loaded values or default values if the environment variables are not set.
+
+```py
+import os
+from dataclasses import dataclass
+
+from dotenv import load_dotenv
+
+
+@dataclass
+class EnvVariables:
+    """
+    Data class to store environment variables.
+    """
+
+    assistant_description: str
+    assistant_name: str
+    bin_dir: str
+    data_dir: str
+    data_file_prefix: str
+    openai_model: str
+
+
+def set_env_variables(env_file_path: str | None = None):
+    """
+    Load environment variables from a .env file and set them in the global ENV_VARIABLES instance.
+
+    Args:
+        env_file_path (str | None): Path to the .env file. If None, defaults to the .env file in the current directory.
+    """
+    global ENV_VARIABLES
+
+    # Load environment variables from the specified .env file, overriding existing variables
+    load_dotenv(env_file_path, override=True)
+
+    # Set the environment variables in the global ENV_VARIABLES instance
+    ENV_VARIABLES.assistant_description = os.getenv("ASSISTANT_DESCRIPTION", "AI Assistant Manager")
+    ENV_VARIABLES.assistant_name = os.getenv("ASSISTANT_NAME", "AI Assistant Manager")
+    ENV_VARIABLES.bin_dir = os.getenv("BIN_DIR", "bin")
+    ENV_VARIABLES.data_dir = os.getenv("DATA_DIR", "data")
+    ENV_VARIABLES.data_file_prefix = os.getenv("DATA_FILE_PREFIX", "AI Assistant Manager")
+    ENV_VARIABLES.openai_model = os.getenv("OPENAI_MODEL", "gpt-4o-2024-08-06")
+
+
+# Initialize the global ENV_VARIABLES instance with default values or values from the environment
+ENV_VARIABLES = EnvVariables(
+    assistant_description=os.getenv("ASSISTANT_DESCRIPTION", "AI Assistant Manager"),
+    assistant_name=os.getenv("ASSISTANT_NAME", "AI Assistant Manager"),
+    bin_dir=os.getenv("BIN_DIR", "bin"),
+    data_dir=os.getenv("DATA_DIR", "data"),
+    data_file_prefix=os.getenv("DATA_FILE_PREFIX", "AI Assistant Manager"),
+    openai_model=os.getenv("OPENAI_MODEL", "gpt-4o-2024-08-06"),
+)
+
+```
+
+## directory_exporter_test.py
+
+### Summary
+
+This code consists of unit tests for the `DirectoryExporter` class from the `ai_assistant_manager` module, using the `pytest` framework and `unittest.mock` for mocking dependencies.
+
+1. **Fixtures**: A fixture named `exporter` creates an instance of `DirectoryExporter` for testing.
+
+2. **Tests**:
+   - `test_export_data_exists`: Verifies that the `export` method does not create a directory if data already exists.
+   - `test_export_data_does_not_exist`: Checks that the `export` method creates a directory and writes data when no data exists.
+   - `test_write_data`: Tests that the `write_data` method writes JSON data to a file correctly.
+   - `test_load`: Ensures that the `load` method retrieves data from files in the directory as instances of `ContentData`.
+   - `test_file_load`: Confirms that `file_load` correctly reads data from a specified file.
+   - `test_get_dir_path`, `test_get_file_path`, and `test_get_data_dir_path`: These tests check that respective methods return the correct paths based on the environment variables.
+
+Overall, the code tests the behavior and functionality of directory export and data management in the `DirectoryExporter` class.
+
+```py
+from unittest.mock import Mock, mock_open, patch
+
+import pytest
+
+from ai_assistant_manager.env_variables import ENV_VARIABLES
+from ai_assistant_manager.exporters.content_data import ContentData
+from ai_assistant_manager.exporters.directory.directory_exporter import DirectoryExporter
+
+example_directory = "directory"
+
+
+@pytest.fixture(name="exporter")
+def build_exporter() -> DirectoryExporter:
+    """
+    Fixture to create a DirectoryExporter instance for testing.
+    """
+    return DirectoryExporter(example_directory)
+
+
+@patch("ai_assistant_manager.exporters.directory.directory_exporter.create_dir")
+@patch("ai_assistant_manager.exporters.directory.directory_exporter.does_data_exist")
+def test_export_data_exists(mock_does_data_exist: Mock, mock_create_dir: Mock, exporter: DirectoryExporter):
+    """
+    Test that export does not create directory if data already exists.
+    """
+    mock_does_data_exist.return_value = True
+
+    exporter.export()
+
+    mock_create_dir.assert_not_called()
+
+
+@patch("ai_assistant_manager.exporters.directory.directory_exporter.create_dir")
+@patch("ai_assistant_manager.exporters.directory.directory_exporter.does_data_exist")
+def test_export_data_does_not_exist(mock_does_data_exist: Mock, mock_create_dir: Mock, exporter: DirectoryExporter):
+    """
+    Test that export creates directory and writes data if data does not exist.
+    """
+    mock_does_data_exist.return_value = False
+
+    exporter.write_data = Mock()
+
+    exporter.export()
+
+    mock_create_dir.assert_called_once()
+    exporter.write_data.assert_called_once()
+
+
+@patch("builtins.open", new_callable=mock_open)
+@patch("json.dumps")
+def test_write_data(mock_json_dumps: Mock, mock_open_file: Mock, exporter: DirectoryExporter):
+    """
+    Test that write_data correctly writes JSON data to a file.
+    """
+    exporter.load = Mock(return_value=[])
+    mock_json_dumps.return_value = "{}"
+
+    exporter.write_data()
+
+    exporter.load.assert_called_once()
+    mock_open_file.assert_called_once_with(exporter.get_file_path(), "w", encoding="utf-8")
+    mock_open_file().write.assert_called_once_with(mock_json_dumps.return_value)
+
+
+@patch("os.listdir")
+def test_load(mock_listdir: Mock, exporter: DirectoryExporter):
+    """
+    Test that load correctly loads data from files in the directory.
+    """
+    exporter.file_load = Mock(return_value=ContentData(id="1", title="Test", body="Test body", date="2022-01-01"))
+    mock_listdir.return_value = ["01 We Call It Saw Time.txt"]
+
+    result = exporter.load()
+
+    assert len(result) == 1
+    assert all(isinstance(item, ContentData) for item in result)
+
+
+def test_file_load(exporter: DirectoryExporter):
+    """
+    Test that file_load correctly loads data from a single file.
+    """
+    exporter.get_data_dir_path = Mock(return_value="data/directory")
+
+    filename = "001 Test File.md"
+    blog_data = exporter.file_load(filename)
+
+    assert blog_data.id == "001"
+    assert blog_data.title == "Test File"
+    assert isinstance(blog_data.body, str)
+    assert blog_data.date == "2024-08-12T00:00:00"
+
+
+def test_get_dir_path(exporter: DirectoryExporter):
+    """
+    Test that get_dir_path returns the correct directory path.
+    """
+    result = exporter.get_dir_path()
+
+    assert result == f"{ENV_VARIABLES.bin_dir}/{example_directory}"
+
+
+def test_get_file_path(exporter: DirectoryExporter):
+    """
+    Test that get_file_path returns the correct file path.
+    """
+    result = exporter.get_file_path()
+
+    assert (
+        result
+        == f"{ENV_VARIABLES.bin_dir}/{example_directory}/{ENV_VARIABLES.data_file_prefix} - {example_directory}.json"
+    )
+
+
+def test_get_data_dir_path(exporter: DirectoryExporter):
+    """
+    Test that get_data_dir_path returns the correct data directory path.
+    """
+    result = exporter.get_data_dir_path()
+
+    assert result == f"{ENV_VARIABLES.data_dir}/{example_directory}"
+
+```
+
+## chat_response.py
+
+### Summary
+
+This code defines a data class called `ChatResponse` that models a chat response with two attributes: `message`, which is a string representing the content of the chat, and `token_count`, an integer indicating the total number of tokens in that response.
+
+```py
+from dataclasses import dataclass
+
+
+@dataclass
+class ChatResponse:
+    """
+    Represents a response in a chat.
+
+    Attributes:
+        message (str): The message content of the chat response.
+        token_count (int): The total token count in the chat response.
+    """
+
+    message: str
+    token_count: int
+
+```
+
+## env_variables_test.py
+
+### Summary
+
+The provided code defines a test function `test_reset_env_variables` that checks if the `set_env_variables` function correctly sets environment variables from a temporary `.env` file during a test run. It creates a `.env` file with specific test variables, calls `set_env_variables` to load them, and then asserts that the variables are accurately reflected in the `ENV_VARIABLES` instance.
+
+```py
+from ai_assistant_manager.env_variables import ENV_VARIABLES, set_env_variables
+
+
+def test_reset_env_variables(tmp_path):
+    """
+    Test the set_env_variables function to ensure it correctly sets environment variables
+    from a .env file.
+
+    Args:
+        tmp_path: pytest fixture that provides a temporary directory unique to the test invocation.
+    """
+    # Create a temporary .env file with test environment variables
+    env_file = tmp_path / ".env"
+    env_file.write_text(
+        "OPENAI_MODEL=test_model\n"
+        "ASSISTANT_DESCRIPTION=test_description\n"
+        "ASSISTANT_NAME=test_name\n"
+        "BIN_DIR=test_bin\n"
+        "DATA_DIR=test_data\n"
+        "DATA_FILE_PREFIX=test_prefix\n"
+    )
+
+    # Call the function to set environment variables from the .env file
+    set_env_variables(str(env_file))
+
+    # Assert the environment variables are set correctly in the ENV_VARIABLES instance
+    assert ENV_VARIABLES.assistant_description == "test_description"
+    assert ENV_VARIABLES.assistant_name == "test_name"
+    assert ENV_VARIABLES.bin_dir == "test_bin"
+    assert ENV_VARIABLES.data_dir == "test_data"
+    assert ENV_VARIABLES.data_file_prefix == "test_prefix"
+    assert ENV_VARIABLES.openai_model == "test_model"
+
+```
+
+## assistant_service.py
+
+### Summary
+
+The provided code defines an `AssistantService` class that manages AI assistants and their associated resources, such as vector stores and retrieval files, using an `OpenAIClient`. Key functionalities include:
+
+1. **Initialization**: Configures the service with an OpenAI client, prompt, assistant name, data file prefix, and tools for retrieval.
+
+2. **Assistant Management**:
+
+   - **Get or Create Assistant**: Retrieves an existing assistant by name or creates a new one if none exists.
+   - **Find/Create Vector Stores**: Looks for existing vector stores matching a data file prefix, or creates new ones if none are found.
+
+3. **File Management**:
+
+   - **Get or Create Retrieval Files**: Checks for existing files under the specified prefix or creates new retrieval files.
+   - **File Validation**: Validates vector stores by checking the status of associated files and recreating any that have failed.
+
+4. **Cleanup**: Features a method to delete the assistant and all associated resources like vector stores and files.
+
+Overall, the class streamlines the processes of managing and utilizing AI assistants by automating the setup and cleanup of their related files and stores.
+
+```py
+import os
+
+from loguru import logger
+
+from ai_assistant_manager.clients.openai_api import OpenAIClient
+from ai_assistant_manager.env_variables import ENV_VARIABLES
+
+RETRIEVAL_TOOLS = [
+    {"type": "file_search"},
+]
+
+
+class AssistantService:
+    """
+    Service class to manage AI assistants and their associated vector stores and files.
+    This class interacts with the OpenAIClient to perform operations such as creating,
+    finding, and deleting assistants and their related resources.
+    """
+
+    def __init__(
+        self,
+        client: OpenAIClient,
+        prompt: str,
+        *,
+        assistant_name: str | None = None,
+        data_file_prefix: str | None = None,
+        tools: list[dict] = RETRIEVAL_TOOLS,
+    ):
+        """
+        Initialize the AssistantService with a client, prompt, assistant name, and data file prefix.
+
+        :param client: The OpenAIClient instance to interact with the OpenAI API.
+        :param prompt: The prompt to be used for the assistant.
+        :param assistant_name: The name of the assistant (default is from environment variables).
+        :param data_file_prefix: The prefix for data files (default is from environment variables).
+        :param tools: The tools to be used by the assistant.
+        """
+
+        self.client = client
+        self.prompt = prompt
+        self.assistant_name = assistant_name if assistant_name else ENV_VARIABLES.assistant_name
+        self.data_file_prefix = data_file_prefix if data_file_prefix else ENV_VARIABLES.data_file_prefix
+        self.tools = tools
+
+    def get_assistant_id(self):
+        """
+        Get the assistant ID, either by finding an existing one or creating a new one.
+
+        :return: The ID of the assistant.
+        """
+        return self._find_existing_assistant() or self._create_assistant()
+
+    def _find_existing_assistant(self):
+        """
+        Retrieve the list of assistants and find one that matches the assistant name.
+
+        :return: The ID of the existing assistant or None if not found.
+        """
+        assistants = self.client.assistants_list()
+        return next(
+            (assistant.id for assistant in assistants if assistant.name == self.assistant_name),
+            None,
+        )
+
+    def _create_assistant(self):
+        """
+        Create a new assistant using the client if no existing assistant is found.
+
+        :return: The ID of the newly created assistant.
+        """
+        logger.info(f"Creating new assistant {self.assistant_name}")
+        return self.client.assistants_create(
+            self.assistant_name, self.prompt, self.get_vector_store_ids(), tools=self.tools
+        ).id
+
+    def get_vector_store_ids(self):
+        """
+        Get the vector store IDs, either by finding existing ones or creating new ones.
+
+        :return: A list of vector store IDs.
+        """
+        return self._find_existing_vector_stores() or self.create_vector_stores()
+
+    def _find_existing_vector_stores(self):
+        """
+        Retrieve the list of vector stores and find those that match the data file prefix.
+
+        :return: A list of existing vector store IDs.
+        """
+        vector_stores = self.client.vector_stores_list()
+        return [
+            vector_store.id
+            for vector_store in vector_stores
+            if vector_store.name and vector_store.name.startswith(self.data_file_prefix)
+        ]
+
+    def create_vector_stores(self):
+        """
+        Create new vector stores if no existing vector stores are found.
+
+        :return: A list containing the ID of the newly created vector store.
+        """
+        logger.info("Creating new vector stores")
+        retrieval_file_ids = self.get_retrieval_file_ids()
+        return [
+            self._validate_vector_stores(
+                self.client.vector_stores_create(f"{self.data_file_prefix} vector store", retrieval_file_ids)
+            )
+        ]
+
+    def _validate_vector_stores(self, vector_store_id: str):
+        """
+        Validate the vector store by checking the status of its files and recreating any failed files.
+
+        :param vector_store_id: The ID of the vector store to validate.
+        :return: The validated vector store ID.
+        """
+        try:
+            vector_store_files = self.client.vector_stores_files(vector_store_id)
+            failed_files = [file.id for file in vector_store_files if file.status == "failed"]
+
+            if not failed_files:
+                return vector_store_id
+
+            # Retrieve details of failed files
+            failed_retrieval_files = [self.client.files_get(file) for file in failed_files if file]
+            failed_retrieval_file_names = [self._get_file_name(file.filename) for file in failed_retrieval_files]
+            failed_file_paths = [
+                file_path
+                for file_path in self._get_file_paths()
+                if self._get_file_name(file_path) in failed_retrieval_file_names
+            ]
+
+            # Delete failed files from vector store
+            [self.client.vector_stores_file_delete(vector_store_id, file_id) for file_id in failed_files]
+
+            # Recreate failed files
+            recreated_files = self._create_files(failed_file_paths)
+            self.client.vector_stores_update(vector_store_id, recreated_files)
+
+            # Recursively validate the vector store again
+            return self._validate_vector_stores(vector_store_id)
+        except Exception as e:
+            logger.error(f"Error validating vector store {vector_store_id}: {e}")
+            return self._validate_vector_stores(vector_store_id)
+
+    def _get_file_name(self, file_path: str) -> str:
+        """
+        Extract the file name from the file path.
+
+        :param file_path: The path of the file.
+        :return: The name of the file.
+        """
+        return os.path.basename(file_path)
+
+    def get_retrieval_file_ids(self):
+        """
+        Get the retrieval file IDs, either by finding existing ones or creating new ones.
+
+        :return: A list of retrieval file IDs.
+        """
+        return self._find_existing_retrieval_files() or self.create_retrieval_files()
+
+    def _find_existing_retrieval_files(self):
+        """
+        Retrieve the list of files and find those that match the data file prefix.
+
+        :return: A list of existing retrieval file IDs.
+        """
+        files = self.client.files_list()
+        return [file.id for file in files if file.filename.startswith(self.data_file_prefix)]
+
+    def create_retrieval_files(self):
+        """
+        Create new retrieval files if no existing retrieval files are found.
+
+        :return: A list of newly created retrieval file IDs.
+        """
+        logger.info("Creating new retrieval files")
+        file_paths = self._get_file_paths()
+        return self._create_files(file_paths)
+
+    def _get_file_paths(self):
+        """
+        Get the paths of all files in the "bin" directory, excluding ".DS_Store" files.
+
+        :return: A list of file paths.
+        """
+        return [
+            os.path.join(root, file)
+            for (root, _, files) in os.walk("bin")
+            for file in files
+            if not file.endswith(".DS_Store")
+        ]
+
+    def _create_files(self, file_paths: list[str]):
+        """
+        Create files using the client for each file path provided.
+
+        :param file_paths: A list of file paths to create files from.
+        :return: A list of newly created file IDs.
+        """
+        return [self._create_file(file_path) for file_path in file_paths]
+
+    def _create_file(self, file_path: str):
+        """
+        Create a single file using the client.
+
+        :param file_path: The path of the file to create.
+        :return: The ID of the newly created file.
+        """
+        with open(file_path, "rb") as file:
+            return self.client.files_create(file, "assistants").id
+
+    def delete_assistant(self):
+        """
+        Remove the assistant and its associated vector stores and retrieval files.
+
+        This method ensures that all resources related to the assistant are cleaned up.
+        """
+        logger.info(f"Removing existing {self.assistant_name} and retrieval files")
+
+        if assistant_id := self._find_existing_assistant():
+            self.client.assistants_delete(assistant_id)
+        if vector_store_ids := self._find_existing_vector_stores():
+            for vector_store_id in vector_store_ids:
+                self.client.vector_stores_delete(vector_store_id)
+        if file_ids := self._find_existing_retrieval_files():
+            for file_id in file_ids:
+                self.client.files_delete(file_id)
+
+```
+
+## prompt.py
+
+### Summary
+
+This code defines a function `get_prompt` that reads a prompt from a specified markdown file (defaulting to `sample_prompt.md`). It replaces the placeholder `{{CURRENT_DATE}}` in the prompt text with the current date in ISO format (YYYY-MM-DD) before returning the modified prompt text. The file is opened using UTF-8 encoding.
+
+```py
+from datetime import datetime
+
+from ai_assistant_manager.encoding import UTF_8
+
+SAMPLE_PROMPT_PATH = "ai_assistant_manager/prompts/sample_prompt.md"
+
+CURRENT_DATE_VARIABLE = "{{CURRENT_DATE}}"
+
+
+def get_prompt(*, prompt_path: str = SAMPLE_PROMPT_PATH):
+    with open(prompt_path, "r", encoding=UTF_8) as prompt:
+        current_date = datetime.today().date().isoformat()
+        return prompt.read().replace(CURRENT_DATE_VARIABLE, current_date)
+
+```
+
+## ruff_defaults.toml
+
+### Summary
+
+This configuration code is set up for code formatting and linting rules in a Python project.
+
+- The `line-length` is set to 120 characters for general formatting.
+- For docstrings, it allows code formatting and sets the line length to 80 characters.
+- Under linting, it specifies that all relative imports are banned via `flake8-tidy-imports`.
+- The `isort` configuration recognizes "src" as a first-party package.
+- The `flake8-pytest-style` settings disable the requirement for parentheses around fixtures and marks.
+
+Overall, it defines formatting preferences and linting rules to maintain code quality and organization.
+
+```toml
+line-length = 120
+
+[format]
+docstring-code-format = true
+docstring-code-line-length = 80
+
+[lint.flake8-tidy-imports]
+ban-relative-imports = "all"
+
+[lint.isort]
+known-first-party = ["src"]
+
+[lint.flake8-pytest-style]
+fixture-parentheses = false
+mark-parentheses = false
+```
+
+## run_end_to_end.py
+
+### Summary
+
+This code sets up an AI assistant management system. It initializes environment variables and exports files and directories necessary for the assistant's operation. A logger records important events. The code then creates an OpenAI client and an assistant service, followed by an attempt to delete any existing assistant data. The chat functionality is commented out but includes starting a chat with a sample message and logging the response. Any exceptions during execution are logged.
+
+```py
+from loguru import logger
+
+from ai_assistant_manager.assistants.assistant_service import (
+    AssistantService,
+)
+from ai_assistant_manager.chats.chat import Chat
+from ai_assistant_manager.clients.openai_api import OpenAIClient, build_openai_client
+from ai_assistant_manager.env_variables import set_env_variables
+from ai_assistant_manager.exporters.directory.directory_exporter import DirectoryExporter
+from ai_assistant_manager.exporters.files.files_exporter import FilesExporter
+from ai_assistant_manager.prompts.prompt import get_prompt
+
+
+def main():
+    DirectoryExporter("directory").export()
+    FilesExporter("about.txt").export()
+
+    assistant_name = "AI-Assistant-Manager-Test"
+    logger.info(f"Building {assistant_name}")
+
+    client = OpenAIClient(build_openai_client())
+    service = AssistantService(client, get_prompt())
+
+    logger.info("Removing existing assistant and category files")
+    service.delete_assistant()
+
+    # assistant_id = service.get_assistant_id()
+    # logger.info(f"Assistant ID: {assistant_id}")
+
+    # chat = Chat(client, assistant_id)
+    # chat.start()
+
+    # message = "What is the AI Assistant Manager?"
+    # print(f"\nMessage:\n{message}")
+
+    # chat_response = chat.send_user_message(message)
+    # print(f"\n{service.assistant_name}:\n{chat_response.message}")
+    # print(f"\nTokens: {chat_response.token_count}")
+
+    # service.delete_assistant()
+
+
+if __name__ == "__main__":
+    try:
+        set_env_variables()
+        main()
+    except Exception as e:
+        logger.info(f"Error: {e}")
+
+```
+
+## files_exporter.py
+
+### Summary
+
+The `FilesExporter` class manages the exporting of files to a specified directory. It ensures files are only exported if they do not already exist and creates necessary directories.
+
+Key features:
+
+- Initialization takes parameters for the file name, target directory, and optional paths for binaries and data.
+- The `export` method checks if the target file exists, logging accordingly, and writes the data if it doesn't.
+- The `write_data` method copies the source file to the target location and logs the operation.
+- Utility methods like `get_dir_path`, `get_file_path`, and `_get_file_name_without_extension` are provided to construct paths and retrieve names as needed.
+
+Overall, this class streamlines file export operations while managing file existence checks and directory creation.
+
+```py
+import os
+import shutil
+
+from loguru import logger
+
+from ai_assistant_manager.env_variables import ENV_VARIABLES
+from ai_assistant_manager.exporters.exporter import (
+    create_dir,
+    does_data_exist,
+)
+
+
+class FilesExporter:
+    """
+    A class to handle exporting files to a specified directory.
+
+    This class ensures that files are only exported if they do not already exist,
+    and it manages the creation of necessary directories.
+    """
+
+    def __init__(
+        self,
+        file_name: str,
+        *,
+        directory: str = "files",
+        bin_dir: str | None = None,
+        data_dir: str | None = None,
+        data_file_prefix: str | None = None,
+    ) -> None:
+        """
+        Initialize the FilesExporter with file and directory information.
+
+        :param file_name: The name of the file to export.
+        :param directory: The target directory for the export (default is "files").
+        :param bin_dir: The base directory for binaries (default is from environment variables).
+        :param data_dir: The base directory for data files (default is from environment variables).
+        :param data_file_prefix: The prefix for data files (default is from environment variables).
+        """
+
+        self.file_name = file_name
+        self.directory = directory
+        self.bin_dir = bin_dir if bin_dir else ENV_VARIABLES.bin_dir
+        self.data_dir = data_dir if data_dir else ENV_VARIABLES.data_dir
+        self.data_file_prefix = data_file_prefix if data_file_prefix else ENV_VARIABLES.data_file_prefix
+
+    def export(self):
+        """
+        Export the file to the target directory if it does not already exist.
+
+        This method checks for the existence of the file and skips the export if the file is already present.
+        It also ensures that the necessary directory structure is created before writing the data.
+        """
+        if does_data_exist(self.get_file_path()):
+            logger.info(f"{self._get_file_name_without_extension()} data exists. Skipping export.")
+            return
+
+        logger.info(f"Exporting {self._get_file_name_without_extension()} data")
+        create_dir(self.get_dir_path(), self.get_file_path())
+        self.write_data()
+
+    def write_data(self):
+        """
+        Write the data to the target file path.
+
+        This method copies the source file to the target file path and logs the operation.
+        """
+        source_path = os.path.join(self.data_dir, self.directory, self.file_name)
+        shutil.copy(source_path, self.get_file_path())
+
+        logger.info(f"{self._get_file_name_without_extension()} data written to file: {self.get_file_path()}")
+
+    def get_dir_path(self):
+        """
+        Get the path to the target directory.
+
+        :return: The path to the target directory.
+        """
+        return os.path.join(
+            self.bin_dir,
+            self.directory,
+        )
+
+    def get_file_path(self):
+        """
+        Get the full path to the target file.
+
+        :return: The full path to the target file.
+        """
+        return os.path.join(
+            self.get_dir_path(),
+            f"{self.data_file_prefix} - {self.file_name}",
+        )
+
+    def _get_file_name_without_extension(self) -> str:
+        """
+        Get the file name without its extension.
+
+        This method is used to log the file name without its extension for clarity.
+
+        :return: The file name without its extension.
+        """
+        file_name_parts = os.path.basename(self.file_name)
+        return os.path.splitext(file_name_parts)[0]
+
+```
